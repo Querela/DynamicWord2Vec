@@ -13,21 +13,17 @@ import numpy as np
 
 
 embs = []
-for k in xrange(180,200):
-    embs.append(sio.loadmat('data/Uindep_%d.mat' % k)['U'])
-    
-for k in xrange(1,len(embs)):
-    print k
-    embs[k-1],embs[k],disp = procrustes(embs[k-1],embs[k])
-    print disp
-    
+for k in range(180, 200):
+    embs.append(sio.loadmat("data/Uindep_%d.mat" % k)["U"])
+
+for k in range(1, len(embs)):
+    print(k)
+    embs[k - 1], embs[k], disp = procrustes(embs[k - 1], embs[k])
+    print(disp)
+
 embs_dict = {}
-for k in xrange(len(embs)):
-    embs_dict['U_%d' % k] = embs[k]
+for k in range(len(embs)):
+    embs_dict["U_%d" % k] = embs[k]
 
 
-sio.savemat('ngram_small/data/Aw2v.mat', embs_dict)
-
-
-
-
+sio.savemat("ngram_small/data/Aw2v.mat", embs_dict)
