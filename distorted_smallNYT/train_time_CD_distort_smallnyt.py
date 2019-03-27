@@ -55,7 +55,7 @@ def run(lam, gam, tau, ITERS, attack_years=[], savetail="", pmitail=""):
         pmitail = "_" + pmitail
     savefile = savefile + savetail
 
-    embfilename = "data/emb_static%s" % savetail
+    embfilename = "data/emb_static%s.mat" % savetail
     print(savefile, embfilename)
     try:
         e = sio.loadmat(embfilename)["emb"]
@@ -102,11 +102,13 @@ def run(lam, gam, tau, ITERS, attack_years=[], savetail="", pmitail=""):
         for t in range(len(times)):  # select a time
             print("iteration %d, time %d" % (iteration, t))
             if T[t] in attack_years:
-                f = "data/wordPMI_%d%s.mat" % (T[t], pmitail)
+                # file = "data/wordPMI_%d%s.mat" % (T[t], pmitail)
+                file = "data/emb_{}{}.mat".format(T[t], pmitail)
             else:
-                f = "data/wordPMI_" + str(T[t]) + ".mat"
+                # file = "data/wordPMI_" + str(T[t]) + ".mat"
+                file = "data/emb_{}.mat".format(T[t])
 
-            pmi = sio.loadmat(f)["pmi"]
+            pmi = sio.loadmat(file)["pmi"]
 
             for j in range(len(b_ind)):  # select a mini batch
                 print("%d out of %d" % (j, len(b_ind)))
@@ -157,7 +159,7 @@ def run(lam, gam, tau, ITERS, attack_years=[], savetail="", pmitail=""):
 
 
 if __name__ == "__main__":
-    attack_year_str = "1991-1994-1997-2000-2003-2006-2009-2012-2015"
+    attack_years = [1991, 1994, 1997, 2000, 2003, 2006, 2009, 2012, 2015]
 
     ITERS = 5  # total passes over the data
     lam = 10  # frob regularizer
@@ -169,7 +171,7 @@ if __name__ == "__main__":
             gam,
             tau,
             ITERS,
-            attack_years=[1991, 1994, 1997, 2000, 2003, 2006, 2009, 2012, 2015],
-            savetail="rate%f_attackyear%s_all" % (rate, attack_year_str),
-            pmitail="rate%f_all" % rate,
+            attack_years=attack_years,
+            savetail="rate{:.6f}_attackyear{}_all".format(rate, '-'.join(str(y) for y in attack_years)),
+            pmitail="rate{:.6f}_all".format(rate),
         )

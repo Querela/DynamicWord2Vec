@@ -45,9 +45,9 @@ def update(U, Y, Vm1, Vp1, lam, tau, gam, ind, iflag):
 # Vm1 and Vp1 are bXr. so they are b rows of V, transposed
 
 
-def import_static_init(times):
+def import_static_init(data_file, times):
     # (T = times)
-    emb = sio.loadmat("data/emb_static.mat")["emb"]
+    emb = sio.loadmat(data_file)["emb"]
     U = [copy.deepcopy(emb) for t in times]
     V = [copy.deepcopy(emb) for t in times]
     return U, V
@@ -67,12 +67,17 @@ def initvars(vocab_size, times, rank):
     return U, V
 
 
+def save_embeddings(data_file, emb):
+    sio.savemat(data_file, {"emb": emb})
+
+
 def getmat(filename, vocab_size, rowflag):
     data = pd.read_csv(filename)
     data = data.values
 
-    X = ss.coo_matrix((data[:, 2], (data[:, 0], data[:, 1])),
-                      shape=(vocab_size, vocab_size))
+    X = ss.coo_matrix(
+        (data[:, 2], (data[:, 0], data[:, 1])), shape=(vocab_size, vocab_size)
+    )
 
     if rowflag:
         X = ss.csr_matrix(X)
@@ -93,9 +98,9 @@ def getbatches(vocab_size, batch_size):
         current = end
     return batch_inds
 
- 
+
 def getclosest(wid, U, num_results=10):
-    '''takes a word id and returns closest words by cosine distance'''
+    """takes a word id and returns closest words by cosine distance"""
     C = []
     # for each timestep
     for t in range(len(U)):
@@ -108,7 +113,7 @@ def getclosest(wid, U, num_results=10):
 
 
 def compute_symscore(U, V):
-    '''computes the regularizer scores given U and V entries'''
+    """computes the regularizer scores given U and V entries"""
     return np.linalg.norm(U - V) ** 2
 
 
