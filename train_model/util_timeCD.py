@@ -10,6 +10,7 @@ Created on Thu Nov 10 10:11:23 2016
 # loss: min 1/2 \sum_t | Yt - UtVt' |^2 + lam/2 \sum_t    (|Ut|^2        + |Vt|^2)
 #                                       + tau/2 \sum_t >1 (|Vt - Vt-1|^2 + |Ut - Ut-1|^2)
 #                                       + gam/2 \sum_t    (|Ut - Vt|^2)
+# in paper: eq(8), V == W
 
 import copy
 
@@ -33,7 +34,7 @@ def update(U, Y, Vm1, Vp1, lam, tau, gam, ind, iflag):
     Ub = U[ind, :].T  # rxb
 
     A = Uty + gam * Ub + tau * (Vm1.T + Vp1.T)  # rxb
-    Vhat = np.linalg.lstsq(M, A)  # rxb
+    Vhat = np.linalg.lstsq(M, A, rcond=None)  # rxb  # rcond=None to silence warning
     return Vhat[0].T  # bxr
 
 
@@ -62,7 +63,7 @@ def initvars(vocab_size, times, rank):
     for t in times:
         U.append(U[0].copy())
         V.append(V[0].copy())
-        print(t)
+        # print(t)
     return U, V
 
 
