@@ -19,15 +19,15 @@ from pprint import pprint
 #%%
 
 wordlist = []
-fid = open("data/wordlist.txt", "r")
-for line in fid:
-    wordlist.append(line.strip())
-fid.close()
+with open("data/wordlist.txt", "r") as fid:
+    for line in fid:
+        wordlist.append(line.strip())
 nw = len(wordlist)
 
 word2Id = {}
-for k in range(len(wordlist)):
-    word2Id[wordlist[k]] = k
+for w_id, word in enumerate(wordlist):
+    word2Id[word] = k
+
 times = range(180, 200)  # total number of time points (20/range(27) for ngram/nyt)
 emb_all = sio.loadmat("results/emb_frobreg10_diffreg50_symmreg10_iter10.mat")
 
