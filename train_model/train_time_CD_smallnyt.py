@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+main script for time CD
+
+trainfile has lines of the form:
+    tok1,tok2,pmi
+
 Created on Thu Nov 10 13:10:42 2016
-
 """
-
-# main script for time CD
-# trainfile has lines of the form
-# tok1,tok2,pmi
 
 import datetime
 import os
@@ -19,22 +19,42 @@ import pickle as pickle
 
 # PARAMETERS
 
-num_words = 20936  # number of words in vocab (11068100/20936 for ngram/nyt)
-T = range(1990, 2016)  # total number of time points (20/range(27) for ngram/nyt)
+#: number of words in vocab (11068100/20936 for ngram/nyt)
+num_words = 20936
+#: total number of time points (20/range(27) for ngram/nyt)
+T = range(1990, 2016)
 
-trainhead = "data/wordPairPMI_"  # location of training data
+#: location of training data
+trainhead = "data/wordPairPMI_"
 
 
-def print_params(rank, lam, tau, gam, emph, ITERS):
+def print_params(rank, lam, tau, gam, emph, num_iterations):
+    """Dump parameter values.
+
+    :param rank: rank/dimension of embeddings (?)
+    :param lam: frob regularizer
+    :param tau: smoothing regularizer / time regularizer
+    :param gam: forcing regularizer / symmetry regularizer
+    :param emph: emphasize the nonzero
+    :param num_iterations: number of iterations over data
+
+    """
     print("rank = {}".format(rank))
     print("frob regularizer = {}".format(lam))
     print("time regularizer = {}".format(tau))
     print("symmetry regularizer = {}".format(gam))
     print("emphasize param = {}".format(emph))
-    print("total iterations = {}".format(ITERS))
+    print("total iterations = {}".format(num_iterations))
 
 
 def try_load_UV(savefile, iteration):
+    """Try to load a savepoint of U and V for a given iteration.
+
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :returns: U, V if able to load, else None, None on error
+
+    """
     Ulist = Vlist = None
 
     try:
@@ -49,6 +69,14 @@ def try_load_UV(savefile, iteration):
 
 
 def try_load_UVT(savefile, iteration, time):
+    """Try to load a savepoint of U and V and times for a given iteration and timepoint combination.
+
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :param time: timepoint in iteration
+    :returns: U, V, times if able to load, else None, None, None on error
+
+    """
     Ulist = Vlist = times = None
 
     try:
@@ -71,6 +99,14 @@ def try_load_UVT(savefile, iteration, time):
 
 
 def save_UV(Ulist, Vlist, savefile, iteration):
+    """Saves embeddings U, V for a given iteration.
+
+    :param Ulist: embedding U
+    :param Vlist: embedding V
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+
+    """
     with open("{}ngU_iter{}.p".format(savefile, iteration), "wb") as file:
         pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
     with open("{}ngV_iter{}.p".format(savefile, iteration), "wb") as file:
@@ -78,6 +114,16 @@ def save_UV(Ulist, Vlist, savefile, iteration):
 
 
 def save_UVT(Ulist, Vlist, times, savefile, iteration, time):
+    """Saves embeddings U, V and times for a given iteration.
+
+    :param Ulist: embeddings U
+    :param Vlist: embeddings V
+    :param times: times (may be randomized)
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :param time: timepoint in iteration
+
+    """
     with open("{}ngU_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
         pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
     with open("{}ngV_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
@@ -89,6 +135,22 @@ def save_UVT(Ulist, Vlist, times, savefile, iteration, time):
 
 
 def do_train_step(Ulist, Vlist, pmi, b_ind, t, num_times, lam, tau, gam, emph, rank):
+    """Do a single training step for a single iteration and timepoint combination.
+    Uses b_ind (batching indices) to batch-wise update the whole embedding matrices.
+
+    :param Ulist: embeddings U
+    :param Vlist: embeddings V
+    :param pmi: PMI word matrix
+    :param b_ind: batching indices (list of ranges())
+    :param t: current timepoint
+    :param num_times: number of timepoints total
+    :param lam: frob regularizer
+    :param tau: smoothing regularizer / time regularizer
+    :param gam: forcing regularizer / symmetry regularizer
+    :param emph: emphasize the nonzero
+    :param rank: rank/dimension of embeddings (?)
+
+    """
     for b_num, ind in enumerate(b_ind, 1):  # select a mini batch
         if len(b_ind) > 1:
             print("Batch {}/{} ...".format(b_num, len(b_ind)))
@@ -136,6 +198,24 @@ def do_training(
     savepoint_iteration=True,
     savepoint_iter_time=False,
 ):
+    """Do a complete training.
+    Able to save current training state per iteration and timepoint and restore
+    training from there.
+
+    :param lam: frob regularizer
+    :param tau: smoothing regularizer / time regularizer
+    :param gam: forcing regularizer / symmetry regularizer
+    :param emph: emphasize the nonzero
+    :param rank: ranke/dimension of embeddings
+    :param time_range: range of time points
+    :param num_iters: number of training iterations
+    :param batch_size: size for batching
+    :param result_dir: folder to store savepoints and final results in
+    :param data_file: if given a file with initial embeddings (Default value = None)
+    :param savepoint_iteration: store current training results per iteration and try to retore from there (Default value = True)
+    :param savepoint_iter_time: store current training results per iteration and timepoint and try to restore there (Default value = False)
+
+    """
     savefile = "L{lam}T{tau}G{gam}A{emph}".format(lam=lam, tau=tau, gam=gam, emph=emph)
     savefile = os.path.join(result_dir, savefile)
 
@@ -236,6 +316,12 @@ def do_training(
 
 
 def parse_args():
+    """Parse training parameter from commandline args.
+    Set defaults if not given.
+
+    :returns: parameters
+
+    """
     import argparse
 
     # Default arguments:
@@ -314,21 +400,27 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    #: parse arguments, use defaults
     args = parse_args()
 
+    #: warn if no savepoints
     if not (args.save_per_iteration or args.save_per_iteration_time):
         raise Exception("Should somehow store intermediate results ...!")
 
+    # make results dir
     if not os.path.exists(args.result_dir):
         print("Make results dir: {}".format(args.result_dir))
         os.mkdir(args.result_dir)
 
+    # dump parameters
     print("Starting training with following parameters:")
     print_params(args.rank, args.lam, args.tau, args.gam, args.emph, args.iters)
     print("There are a total of {} words and {} time points.".format(num_words, T))
 
     print("=" * 78)
+    # print(args)
 
+    # train
     do_training(
         args.lam,
         args.tau,
