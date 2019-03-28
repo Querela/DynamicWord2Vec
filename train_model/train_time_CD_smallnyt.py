@@ -9,6 +9,7 @@ trainfile has lines of the form:
 Created on Thu Nov 10 13:10:42 2016
 """
 
+import ast
 import datetime
 import os
 import time
@@ -16,16 +17,6 @@ import time
 import numpy as np
 import util_timeCD as util
 import pickle as pickle
-
-# PARAMETERS
-
-#: number of words in vocab (11068100/20936 for ngram/nyt)
-num_words = 20936
-#: total number of time points (20/range(27) for ngram/nyt)
-T = range(1990, 2016)
-
-#: location of training data
-trainhead = "data/wordPairPMI_"
 
 
 def print_params(rank, lam, tau, gam, emph, num_iterations):
@@ -134,6 +125,25 @@ def save_UVT(Ulist, Vlist, times, savefile, iteration, time):
         pickle.dump(times, file, pickle.HIGHEST_PROTOCOL)
 
 
+def load_train_data(data_dir, num_words, time_range, time_period):
+    """Really not very generic method to load train data PMI file for a given timepoint.
+
+    :param data_dir: directory of data files, PMI word pairs
+    :param num_words: number of words in vocabulary
+    :param time_range: range object of times
+    :param time_period: timepoint (year?)
+
+    """
+    filename = "wordPairPMI_{}.csv".format(time_range.index(time_period))
+    if data_dir:
+        filename = os.path.join(data_dir, filename)
+    # print("\nLoading current trainings data (time: {}, at: {}) from: {}".format(time_period, time_range.index(time_period), filename))
+
+    pmi = util.getmat(filename, num_words, False)
+
+    return pmi
+
+
 def do_train_step(Ulist, Vlist, pmi, b_ind, t, num_times, lam, tau, gam, emph, rank):
     """Do a single training step for a single iteration and timepoint combination.
     Uses b_ind (batching indices) to batch-wise update the whole embedding matrices.
@@ -192,8 +202,10 @@ def do_training(
     rank,
     time_range,
     num_iters,
-    batch_size,
+    num_words,
     result_dir,
+    data_dir,
+    batch_size=None,
     data_file=None,
     savepoint_iteration=True,
     savepoint_iter_time=False,
@@ -209,8 +221,10 @@ def do_training(
     :param rank: ranke/dimension of embeddings
     :param time_range: range of time points
     :param num_iters: number of training iterations
-    :param batch_size: size for batching
+    :param num_words: number of words in vocabulary
     :param result_dir: folder to store savepoints and final results in
+    :param data_dir: folder with trainings data (PMI word pairs)
+    :param batch_size: size for batching
     :param data_file: if given a file with initial embeddings (Default value = None)
     :param savepoint_iteration: store current training results per iteration and try to retore from there (Default value = True)
     :param savepoint_iter_time: store current training results per iteration and timepoint and try to restore there (Default value = False)
@@ -228,7 +242,7 @@ def do_training(
     # print(Vlist)
 
     print("Preparing batch indices ...")
-    if batch_size < num_words:
+    if batch_size is not None and batch_size < num_words:
         b_ind = util.getbatches(num_words, batch_size)
     else:
         b_ind = [range(num_words)]
@@ -276,9 +290,7 @@ def do_training(
                     Ulist, Vlist, times = Ulist2, Vlist2, times2
                     continue
 
-            filename = "{}{}.csv".format(trainhead, time_range.index(time_period))
-            # print("\nLoading current trainings data (time: {}, at: {}) from: {}".format(time_period, time_range.index(time_period), filename))
-            pmi = util.getmat(filename, num_words, False)
+            pmi = load_train_data(data_dir, num_words, time_range, time_period)
 
             do_train_step(
                 Ulist,
@@ -330,14 +342,20 @@ def parse_args():
     gam = 100.0  # forcing regularizer
     tau = 50.0  # smoothing regularizer
     rank = 50  # rank
-    batch_size = num_words  # batch size
+    num_words = 20936  # number of words in vocab (11068100/20936 for ngram/nyt)
+    batch_size = -1  # batch size, -1 for whole
     emph = 1.0  # emphasize the nonzero
     data_file = "data/emb_static.mat"
     result_dir = "results"
+    data_dir = "data"
+    time_range = (
+        1990,
+        2016,
+    )  # range, total number of time points (20/range(27) for ngram/nyt)
 
     # Parse arguments:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-r", "--rank", type=float, default=rank, help="rank")
+    parser.add_argument("-r", "--rank", type=int, default=rank, help="rank")
     parser.add_argument(
         "--iters", type=int, default=num_iters, help="iterations over data"
     )
@@ -358,7 +376,26 @@ def parse_args():
         "--emph", type=float, default=emph, help="emphasize the nonzero"
     )
     parser.add_argument(
-        "-b", "--batch-size", type=int, default=batch_size, help="Batch size"
+        "-n",
+        "--num-words",
+        type=int,
+        default=num_words,
+        help="number of words in vocabulary",
+    )
+    parser.add_argument(
+        "--time-range",
+        type=str,
+        default=str(time_range),
+        help='time range (years?), format: "year_start,year_end" default: {}'.format(
+            str(time_range)
+        ),
+    )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        type=int,
+        default=batch_size,
+        help="Batch size, -1 for no batches",
     )
     parser.add_argument(
         "--init-weights-file",
@@ -379,6 +416,13 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--data-dir",
+        default=data_dir,
+        help="Folder with data files, PMI word pairs, wordlists etc., default: {}".format(
+            data_dir
+        ),
+    )
+    parser.add_argument(
         "--save-per-iteration",
         action="store_true",
         default=True,
@@ -395,6 +439,16 @@ def parse_args():
 
     if args.init_random_weights:
         args.init_weights_file = None
+
+    try:
+        time_range2 = range(*ast.literal_eval(args.time_range))
+        args.time_range = time_range2
+    except Exception as ex:
+        print("! Default to default value for time_range, {}".format(ex))
+        args.time_range = range(*time_range)
+
+    if args.batch_size <= 0:
+        args.batch_size = args.num_words
 
     return args
 
@@ -415,7 +469,11 @@ if __name__ == "__main__":
     # dump parameters
     print("Starting training with following parameters:")
     print_params(args.rank, args.lam, args.tau, args.gam, args.emph, args.iters)
-    print("There are a total of {} words and {} time points.".format(num_words, T))
+    print(
+        "There are a total of {} words and {} time points.".format(
+            args.num_words, args.time_range
+        )
+    )
 
     print("=" * 78)
     # print(args)
@@ -427,10 +485,12 @@ if __name__ == "__main__":
         args.gam,
         args.emph,
         args.rank,
-        T,
+        args.time_range,
         args.iters,
-        args.batch_size,
+        args.num_words,
         args.result_dir,
+        args.data_dir,
+        batch_size=args.batch_size,
         data_file=args.init_weights_file,
         savepoint_iteration=args.save_per_iteration,
         savepoint_iter_time=args.save_per_iteration_time,
