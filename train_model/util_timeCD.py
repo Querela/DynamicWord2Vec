@@ -103,6 +103,27 @@ def save_embeddings(data_file, emb):
     sio.savemat(data_file, {"emb": emb})
 
 
+def save_embeddings_split(data_file, emb, time_range, prefix="U_"):
+    """Save embeddings in MATLAB data file. Split per timepoint.
+    Add keys as combination of `prefix` and index in `time_range`.
+
+    :param data_file: filepath to store the embeddings in MATLAB file at.
+    :param emb: embeddings to store
+    :param time_range: range of timepoints
+    :param prefix: key prefix (Default value = "U_")
+
+    """
+    if not prefix:
+        prefix = ""
+
+    embs = dict()
+    for tx, time in enumerate(time_range):
+        key = "{}{}".format(prefix, tx)
+        embs[key] = emb[tx]
+
+    sio.savemat(data_file, embs)
+
+
 def getmat(filename, vocab_size, rowflag=False, make_dense=False, inds=None):
     """Load PMI (?) matrix from a given filepath (CSV file)
 

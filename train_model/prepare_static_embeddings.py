@@ -55,11 +55,25 @@ def get_word_idx(filename, skip_header=False):
             word = line[1].strip()
             freq = int(line[2])
 
+            # this can silently ignore duplicate words ... so:
+            if word in vocab2id:
+                print(
+                    "  ! word duplicate: {}, ids: {},{}".format(
+                        word, vocab2id[word], w_id
+                    )
+                )
+                continue
+
             vocab2id[word] = w_id
+
             # id2freq[w_id] = freq
             freqlist.append(freq)
 
     freqlist = np.array(freqlist)
+
+    # if it fails, you have to modify manually ...
+    # assert freqlist.shape[0] != len(vocab2id), "duplicate words?"
+
     return vocab2id, freqlist
 
 
@@ -72,7 +86,7 @@ def get_cum_cooccur(filename, vocab2id, skip_header=True):
     :returns: matrix with cooccurrence, sparse (but dense object)
 
     """
-    num_words = len(vocab2id.keys()) + 6  # quick fix ...
+    num_words = len(vocab2id.keys())
     cooccur = np.zeros((num_words, num_words))
 
     with open(filename, "r", encoding="utf-8") as fid:
@@ -168,6 +182,7 @@ def main(
     rank,
     initial_coocfreq_file=None,
     eigs_static_file=None,
+    debug=False,
 ):
     """Main workflow.
 
@@ -177,6 +192,7 @@ def main(
     :param rank: rank/dimension of embeddings (number of eigenvectors to compute)
     :param initial_coocfreq_file: output file for cooc matrix and frequency vector (Default value = None)
     :param eigs_static_file: output file for eigenvector/eigenvalue data (Default value = None)
+    :param debug: debug output information (Default value = False)
 
     """
     print("* Load words and frequencies ...", end="", flush=True)
@@ -196,7 +212,7 @@ def main(
     print("* Generate static embeddings ...")
     start_time = time.time()
     eigenvectors, eigenvalues, emb = build_static_embs(
-        cooccur, freqlist, rank=rank, debug=True
+        cooccur, freqlist, rank=rank, debug=debug
     )
     print("~ Took {}".format(_get_time_diff(start_time)))
 
@@ -240,41 +256,61 @@ def parse_args():
         "-d",
         "--data-dir",
         default=data_dir,
-        help="base directory for all input and output files",
+        help="base directory for all input and output files, default: {}".format(
+            data_dir
+        ),
     )
     parser.add_argument(
         "-w",
         "--words-file",
         default=words_file,
-        help="input filename for CSV file of words, w_ids and frequencies",
+        help="input filename for CSV file of words, w_ids and frequencies, default: {}".format(
+            words_file
+        ),
     )
     parser.add_argument(
         "-c",
         "--yearly-coocs-file",
         default=yearly_coocs_file,
-        help="input filename for CSV file of yearly cooccurrence data",
+        help="input filename for CSV file of yearly cooccurrence data, default: {}".format(
+            yearly_coocs_file
+        ),
     )
     parser.add_argument(
         "-e",
         "--emb-file",
         default=emb_static_file,
-        help="output filename for initial static embeddings",
+        help="output filename for initial static embeddings, default: {}".format(
+            emb_static_file
+        ),
     )
     parser.add_argument(
         "-r",
         "--rank",
         default=rank,
-        help="rank/dimensions for eigenvector computation and resulting embeddings",
+        help="rank/dimensions for eigenvector computation and resulting embeddings, default: {}".format(
+            rank
+        ),
     )
     parser.add_argument(
         "--coocs-matrix-file",
         default=coocs_matrix_file,
-        help="output filename for matrix with word cooccurence frequencies?; empty to disable",
+        help="output filename for matrix with word cooccurence frequencies?; empty to disable, default: {}".format(
+            coocs_matrix_file
+        ),
     )
     parser.add_argument(
         "--eigs-file",
         default=eigs_static_file,
-        help="output filename for eigenvalue/eigenvector data; empty to disable",
+        help="output filename for eigenvalue/eigenvector data; empty to disable, default: {}".format(
+            eigs_static_file
+        ),
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="debugging information about matix shapes etc.",
     )
 
     args = parser.parse_args()

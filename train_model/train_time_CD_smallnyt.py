@@ -325,6 +325,9 @@ def do_training(
     print("Save results to: {}".format(result_dir))
     util.save_embeddings("{}/embeddings_Unew.mat".format(result_dir), Ulist)
     util.save_embeddings("{}/embeddings_Vnew.mat".format(result_dir), Vlist)
+    util.save_embeddings_split(
+        "{}/embeddings.mat".format(result_dir), Ulist, time_range
+    )
 
 
 def parse_args():
