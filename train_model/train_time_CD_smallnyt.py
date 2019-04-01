@@ -207,6 +207,7 @@ def do_training(
     data_dir,
     batch_size=None,
     data_file=None,
+    randomize_times=False,
     savepoint_iteration=True,
     savepoint_iter_time=False,
 ):
@@ -226,6 +227,7 @@ def do_training(
     :param data_dir: folder with trainings data (PMI word pairs)
     :param batch_size: size for batching
     :param data_file: if given a file with initial embeddings (Default value = None)
+    :param randomize_times: Randomize timepoints in timerange while training (Default value = False)
     :param savepoint_iteration: store current training results per iteration and try to retore from there (Default value = True)
     :param savepoint_iter_time: store current training results per iteration and timepoint and try to restore there (Default value = False)
 
@@ -266,8 +268,12 @@ def do_training(
 
         loss = 0  # unused
 
-        # shuffle times  # unused
-        times = time_range if iteration == 0 else np.random.permutation(time_range)
+        times = time_range
+        # shuffle times
+        if randomize_times:
+            # TODO: keep times for even iterations un-randomized?
+            if iteration > 0 and iteration < (num_iters - 1):
+                times = np.random.permutation(time_range)
 
         for time_step, time_period in enumerate(times):  # select next/a time
             time_ittm_start = time.time()
@@ -412,6 +418,11 @@ def parse_args():
         help="initialize with random weights or load static embedding matrix (e. g. previous result)",
     )
     parser.add_argument(
+        "--randomize-timepoints",
+        action="store_true",
+        help="randomize timepoints in timerange while training",
+    )
+    parser.add_argument(
         "--result-dir",
         default=result_dir,
         help="Folder with result and intermediate training files, default: {}".format(
@@ -495,6 +506,7 @@ if __name__ == "__main__":
         args.data_dir,
         batch_size=args.batch_size,
         data_file=args.init_weights_file,
+        randomize_times=args.randomize_timepoints,
         savepoint_iteration=args.save_per_iteration,
         savepoint_iter_time=args.save_per_iteration_time,
     )
