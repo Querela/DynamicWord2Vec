@@ -172,6 +172,8 @@ if __name__ == "__main__":
             tau,
             ITERS,
             attack_years=attack_years,
-            savetail="rate{:.6f}_attackyear{}_all".format(rate, '-'.join(str(y) for y in attack_years)),
+            savetail="rate{:.6f}_attackyear{}_all".format(
+                rate, "-".join(str(y) for y in attack_years)
+            ),
             pmitail="rate{:.6f}_all".format(rate),
         )
