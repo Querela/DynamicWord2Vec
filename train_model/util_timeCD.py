@@ -186,7 +186,8 @@ def getclosest(wid, U, num_results=10):
     # for each timestep
     for t in range(len(U)):
         temp = U[t]
-        K = cosine_similarity(temp[wid, :], temp)
+        # K = cosine_similarity(temp[wid, :], temp)
+        K = np.dot(temp, temp[wid, :])
         mxinds = np.argsort(-K)
         mxinds = mxinds[0:num_results]
         C.append(mxinds)

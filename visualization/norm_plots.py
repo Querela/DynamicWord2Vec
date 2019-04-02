@@ -13,7 +13,6 @@ Created on Mon Jan 09 20:46:52 2017
 """
 import scipy.io as sio
 import numpy as np
-import json
 from pprint import pprint
 
 #%%
