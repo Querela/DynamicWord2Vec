@@ -235,6 +235,10 @@ def do_training(
     savefile = "L{lam}T{tau}G{gam}A{emph}".format(lam=lam, tau=tau, gam=gam, emph=emph)
     savefile = os.path.join(result_dir, savefile)
 
+    # add inclusive end timepoint ...
+    # TODO: think of something better ...
+    time_range = range(time_range[0], time_range[-1] + 2)
+
     print("Initializing ...")
     if data_file is None:
         Ulist, Vlist = util.initvars(num_words, time_range, rank)
@@ -278,8 +282,13 @@ def do_training(
         for time_step, time_period in enumerate(times):  # select next/a time
             time_ittm_start = time.time()
             print(
-                "Iteration {}/{}, Time {}/{} ({}) ...".format(
-                    iteration + 1, num_iters, time_step + 1, len(times), time_period
+                "Iteration {} ({}/{}), Time {} ({}/{}) ...".format(
+                    iteration,
+                    iteration + 1,
+                    num_iters,
+                    time_period,
+                    time_step + 1,
+                    len(times),
                 ),
                 end="",
                 flush=True,
