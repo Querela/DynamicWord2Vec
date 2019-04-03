@@ -197,7 +197,7 @@ def main(embeddings_filename, time_range, words_file, result_dir):
     set_base_indent_level()
 
     emb_all = sio.loadmat(embeddings_filename)
-    iprint("? emb_all.keys(): {}".format(emb_all.keys()))
+    # iprint("? emb_all.keys(): {}".format(emb_all.keys()))
     with open(words_file, "r", encoding="utf-8") as fin:
         words = [w.strip() for w in fin]
 
@@ -209,9 +209,9 @@ def main(embeddings_filename, time_range, words_file, result_dir):
 
     iprint("* Find extreme words ...")
     extremes = find_extremes(emb_norms, time_range, words, num=10)
-    iprint("# Extremes: {}".format(extremes))
+    iprint("# Extremes: {}".format(extremes), level=1)
     unextremes = find_extremes(emb_norms, time_range, words, num=10, inverse=True)
-    iprint("# Un-Extremes: {}".format(unextremes))
+    iprint("# Un-Extremes: {}".format(unextremes), level=1)
 
     iprint("* Find extreme words first-last ...")
     extremes_fl = find_extremes(
@@ -221,7 +221,7 @@ def main(embeddings_filename, time_range, words_file, result_dir):
         filter_years=(time_range[0], time_range[-1]),
         num=10,
     )
-    iprint("# Extremes: {}".format(extremes_fl))
+    iprint("# Extremes: {}".format(extremes_fl), level=1)
     unextremes_fl = find_extremes(
         emb_norms,
         time_range,
@@ -230,7 +230,7 @@ def main(embeddings_filename, time_range, words_file, result_dir):
         num=10,
         inverse=True,
     )
-    iprint("# Un-Extremes: {}".format(unextremes_fl))
+    iprint("# Un-Extremes: {}".format(unextremes_fl), level=1)
 
 
 def parse_args():
