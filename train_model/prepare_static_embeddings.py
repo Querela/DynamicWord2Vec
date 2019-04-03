@@ -49,7 +49,7 @@ def get_word_idx(filename, skip_header=False):
         if skip_header:
             fid.readline()
         for line in fid:
-            line = line.strip("\n").split(",")
+            line = line.strip("\n").split("\t")  # ","
 
             w_id = int(line[0])
             word = line[1].strip()
@@ -93,25 +93,32 @@ def get_cum_cooccur(filename, vocab2id, skip_header=True):
         if skip_header:
             fid.readline()
 
+        num_err = 0
         for ln, line in enumerate(fid, 1):
             # if ln % 100000 == 0:
             #     print(ln / (41709765.0))
 
-            counts = line.strip("\n").split(",")
+            word1, word2, counts = line.strip("\n").split("\t")
 
-            words = counts[0].split(":")
-            w1_id = vocab2id[words[0]]
-            w2_id = vocab2id[words[1]]
+            try:
+                w1_id = vocab2id[word1]
+                w2_id = vocab2id[word2]
+            except KeyError as ex:
+                num_err += 1
+                if num_err < 10:
+                    print("Line: {} - {}".format(ln, ex))
 
             if w1_id == w2_id:
                 print("word-pair same?: '{}', '{}'".format(w1_id, w2_id))
                 # continue
 
-            for count in counts[1:]:
+            for count in counts.split(","):
                 if not count.strip():
                     continue
                 cooccur[w1_id, w2_id] += int(count)
-                cooccur[w2_id, w1_id] += int(count)
+                # cooccur[w2_id, w1_id] += int(count)
+
+        print("{} errors.".format(num_err))
 
     return cooccur
 
@@ -207,7 +214,10 @@ def main(
 
     if initial_coocfreq_file:
         print("  * Save cooc mat + freq vec to: {}".format(initial_coocfreq_file))
-        sio.savemat(initial_coocfreq_file, {"cooccur": cooccur, "freq": freqlist})
+        try:
+            sio.savemat(initial_coocfreq_file, {"cooccur": cooccur, "freq": freqlist})
+        except Exception as ex:
+            print("    ! {}".format(ex))
 
     print("* Generate static embeddings ...")
     start_time = time.time()

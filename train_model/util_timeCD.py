@@ -13,6 +13,7 @@ Created on Thu Nov 10 10:11:23 2016
 # in paper: eq(8), V == W
 
 import copy
+import os
 
 import numpy as np
 import pandas as pd
@@ -124,7 +125,15 @@ def save_embeddings_split(data_file, emb, time_range, prefix="U_"):
     sio.savemat(data_file, embs)
 
 
-def getmat(filename, vocab_size, rowflag=False, make_dense=False, inds=None):
+def getmat(
+    filename,
+    vocab_size,
+    rowflag=False,
+    make_dense=False,
+    inds=None,
+    sep=None,
+    cache=False,
+):
     """Load PMI (?) matrix from a given filepath (CSV file)
 
     :param filename: CSV file with <w1_id><w2_id><pmi_value>
@@ -132,14 +141,24 @@ def getmat(filename, vocab_size, rowflag=False, make_dense=False, inds=None):
     :param rowflag: sparse matrix in row or column order (?), (Default value = False)
     :param make_dense: keep sparse matrix or make dense (Default value = False)
     :param inds: batching indices, return subset of data if not None (Default value = None)
+    :param sep: CSV separator (None for auto-detection) (Default value = None)
+    :param cache: store CSV as scipy/numpy NPZ file to speed up things (Default value = False)
 
     """
-    data = pd.read_csv(filename)
-    data = data.values
+    cache_coo_filename = "{}.npz".format(filename)
 
-    X = ss.coo_matrix(
-        (data[:, 2], (data[:, 0], data[:, 1])), shape=(vocab_size, vocab_size)
-    )
+    if cache and os.path.exists(cache_coo_filename):
+        X = ss.load_npz(cache_coo_filename)
+    else:
+        data = pd.read_csv(filename, sep=sep)
+        data = data.values
+
+        X = ss.coo_matrix(
+            (data[:, 2], (data[:, 0], data[:, 1])), shape=(vocab_size, vocab_size)
+        )
+
+        if cache:
+            ss.save_npz(cache_coo_filename, X, compressed=False)
 
     if rowflag:
         X = ss.csr_matrix(X)
