@@ -352,4 +352,5 @@ if __name__ == "__main__":
         args.rank,
         args.coocs_matrix_file,
         args.eigs_file,
+        debug=args.debug,
     )
