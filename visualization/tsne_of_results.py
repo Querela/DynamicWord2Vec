@@ -229,21 +229,87 @@ def main(
 if __name__ == "__main__":
     word = "communist"
     times = range(
-        1800, 2000, 10
+        1800, 2000, 10  # ?
     )  # total number of time points (20/range(27) for ngram/nyt)
 
-    # TODO: unused
     allwords = ["art", "damn", "gay", "hell", "maid", "muslim"]
 
     wordlist_filename = "data/wordlist.txt"
     embeddings_filename = "results/embeddings.mat"
-    output_dir = "tsne_output"
+    output_dir = "tsne_output_extremes"
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
     main(
         word, times, wordlist_filename, embeddings_filename, output_dir, recompute=False
     )
 
     for word_ in allwords:
+        main(
+            word_,
+            times,
+            wordlist_filename,
+            embeddings_filename,
+            output_dir,
+            recompute=False,
+        )
+
+    # ------------------------------------
+
+    extreme_words = list()
+    # extremes over year
+    extreme_words += [
+        "la",
+        "de",
+        "du",
+        "qui",
+        "histoire",
+        "en",
+        "cul",
+        "les",
+        "homme",
+        "aux",
+    ]
+    extreme_words += [
+        "diabetes",
+        "stemmed",
+        "comings",
+        "preoccupied",
+        "transcendence",
+        "participant",
+        "dept",
+        "democrats",
+        "xxvi",
+        "housing",
+    ]
+    # extremes first-last
+    extreme_words += [
+        "mann",
+        "vt",
+        "long",
+        "webster",
+        "uplift",
+        "terry",
+        "short",
+        "meredith",
+        "geneva",
+        "symbolized",
+    ]
+    extreme_words += [
+        "la",
+        "une",
+        "homme",
+        "du",
+        "cul",
+        "au",
+        "en",
+        "je",
+        "nous",
+        "ville",
+    ]
+
+    for word_ in extreme_words:
         main(
             word_,
             times,

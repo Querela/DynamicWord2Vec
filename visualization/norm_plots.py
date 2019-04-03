@@ -73,6 +73,12 @@ if __name__ == "__main__":
     )  # total number of time points (20/range(27) for ngram/nyt)
 
     words = ["thou", "chaise", "darwin", "telephone"]
+    # # extremes over year
+    # words = ['la', 'de', 'du', 'qui', 'histoire', 'en', 'cul', 'les', 'homme', 'aux']
+    # words = ['diabetes', 'stemmed', 'comings', 'preoccupied', 'transcendence', 'participant', 'dept', 'democrats', 'xxvi', 'housing']
+    # # extremes first-last
+    # words = ['mann', 'vt', 'long', 'webster', 'uplift', 'terry', 'short', 'meredith', 'geneva', 'symbolized']
+    # words = ['la', 'une', 'homme', 'du', 'cul', 'au', 'en', 'je', 'nous', 'ville']
 
     sane_words = ["".join([c for c in word if re.match(r"\w", c)]) for word in words]
 
