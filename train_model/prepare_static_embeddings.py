@@ -156,7 +156,8 @@ def build_static_embs(cooccur, freq, rank=50, debug=False):
 
     # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh
     # https://de.mathworks.com/help/matlab/ref/eigs.html#bu2_q3e-sigma
-    eigenvalues, eigenvectors = ssl.eigsh(
+    # eigs(...) (square matrix) - eigsh(...) (sq.mat, real symmetric)
+    eigenvalues, eigenvectors = ssl.eigs(
         pmi, rank, which="LA"
     )  # sigma='la'/largestreal option in Matlab? opts=isreal/issym
     # MATLAB: [X, D] = eigs(pmi,50,'la', opts);
@@ -297,6 +298,7 @@ def parse_args():
     parser.add_argument(
         "-r",
         "--rank",
+        type=int,
         default=rank,
         help="rank/dimensions for eigenvector computation and resulting embeddings, default: {}".format(
             rank
