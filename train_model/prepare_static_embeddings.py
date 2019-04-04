@@ -4,7 +4,6 @@ Created on Mon Jan 30 11:57:51 2017
 
 @author: suny2
 """
-import datetime
 import os
 import time
 
@@ -12,31 +11,18 @@ import numpy as np
 import scipy.io as sio
 import scipy.sparse.linalg as ssl
 
-
-def _get_time_diff(start_time, end_time=None):
-    """Makes a `datetime.timedelta` object from a time difference.
-
-    :param start_time: start time value (from `time.time()`)
-    :param end_time: optional end time, or will retrieve current time (Default value = None)
-    :returns: time delta
-    :rtype: datetime.timedelta`
-
-    """
-    if end_time is None:
-        end_time = time.time()
-
-    time_diff = end_time - start_time
-    time_diff = int(time_diff)
-    time_delta = datetime.timedelta(seconds=time_diff)
-
-    return time_delta
+from util_shared import set_base_indent_level, iprint, get_time_diff
 
 
-def get_word_idx(filename, skip_header=False):
+# ----------------------------------------------------------------------------
+
+
+def get_word_idx(filename, skip_header=False, sep="\t"):
     """Load input data and build lookup word to w_id and list of frequencies.
 
     :param filename: input filename for CSV file with w_id, word, frequency
     :param skip_header: whether to skip a possible header in filename (Default value = False)
+    :param sep: column separator (Default value = "\t")
     :returns: tuple: lookup word2w_id and frequencies for each word
 
     """
@@ -49,7 +35,7 @@ def get_word_idx(filename, skip_header=False):
         if skip_header:
             fid.readline()
         for line in fid:
-            line = line.strip("\n").split("\t")  # ","
+            line = line.strip("\n").split(sep)
 
             w_id = int(line[0])
             word = line[1].strip()
@@ -57,8 +43,8 @@ def get_word_idx(filename, skip_header=False):
 
             # this can silently ignore duplicate words ... so:
             if word in vocab2id:
-                print(
-                    "  ! word duplicate: {}, ids: {},{}".format(
+                iprint(
+                    "! word duplicate: {}, ids: {},{}".format(
                         word, vocab2id[word], w_id
                     )
                 )
@@ -77,12 +63,13 @@ def get_word_idx(filename, skip_header=False):
     return vocab2id, freqlist
 
 
-def get_cum_cooccur(filename, vocab2id, skip_header=True):
+def get_cum_cooccur(filename, vocab2id, skip_header=True, sep="\t"):
     """Build cummulative cooccurrence matrix from CSV data file.
 
     :param filename: input filename of yearly cooccurrences
     :param vocab2id: lookup word to w_id
     :param skip_header: whether to skip a possible header in filename (Default value = True)
+    :param sep: column separator (Default value = "\t")
     :returns: matrix with cooccurrence, sparse (but dense object)
 
     """
@@ -96,9 +83,9 @@ def get_cum_cooccur(filename, vocab2id, skip_header=True):
         num_err = 0
         for ln, line in enumerate(fid, 1):
             # if ln % 100000 == 0:
-            #     print(ln / (41709765.0))
+            #     iprint(ln / (41709765.0))
 
-            word1, word2, counts = line.strip("\n").split("\t")
+            word1, word2, counts = line.strip("\n").split(sep, 2)
 
             try:
                 w1_id = vocab2id[word1]
@@ -106,10 +93,10 @@ def get_cum_cooccur(filename, vocab2id, skip_header=True):
             except KeyError as ex:
                 num_err += 1
                 if num_err < 10:
-                    print("Line: {} - {}".format(ln, ex))
+                    iprint("! line: {} - {}".format(ln, ex))
 
             if w1_id == w2_id:
-                print("word-pair same?: '{}', '{}'".format(w1_id, w2_id))
+                iprint("! word-pair same?: '{}', '{}'".format(w1_id, w2_id))
                 # continue
 
             for count in counts.split(","):
@@ -118,7 +105,7 @@ def get_cum_cooccur(filename, vocab2id, skip_header=True):
                 cooccur[w1_id, w2_id] += int(count)
                 # cooccur[w2_id, w1_id] += int(count)
 
-        print("{} errors.".format(num_err))
+        iprint("! {} errors.".format(num_err))
 
     return cooccur
 
@@ -135,23 +122,23 @@ def build_static_embs(cooccur, freq, rank=50, debug=False):
 
     """
     if debug:
-        print("cooccur shape = {}".format(cooccur.shape))
-        print("freq shape = {}".format(freq.shape))
+        iprint("cooccur shape = {}".format(cooccur.shape))
+        iprint("freq shape = {}".format(freq.shape))
 
     cooccur += np.diag(freq)  # cooccur = cooccur + diag(freq);
     if debug:
-        print("cooccur: {}".format(cooccur.shape))
+        iprint("add freq diag, cooccur: {}".format(cooccur.shape))
     cooccur *= np.sum(freq)  # cooccur = cooccur*sum(freq) ./ (freq*freq');
     if debug:
-        print("cooccur: {}".format(cooccur.shape))
+        iprint("prod of sum freqs, cooccur: {}".format(cooccur.shape))
     cooccur /= np.dot(freq, freq.T)
     if debug:
-        print("cooccur: {}".format(cooccur.shape))
+        iprint("div of freq dot product, cooccur: {}".format(cooccur.shape))
 
     pmi = np.log(np.clip(cooccur, 0, None))
     pmi[np.isinf(pmi)] = 0
     if debug:
-        print("pmi shape = {}".format(pmi.shape))
+        iprint("clip + log of cooccur, pmi shape = {}".format(pmi.shape))
     # asdf  # ??
 
     # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html#scipy.sparse.linalg.eigsh
@@ -168,19 +155,22 @@ def build_static_embs(cooccur, freq, rank=50, debug=False):
     # eigenvectors - eigenvectors, column eigenvectors[:, i] is the eigenvector corresponding to the eigenvalue eigenvalues[i]
 
     if debug:
-        print("eigenvalues shape = {}".format(eigenvalues.shape))
-        print("eigenvectors shape = {}".format(eigenvectors.shape))
+        iprint("eigenvalues shape = {}".format(eigenvalues.shape))
+        iprint("eigenvectors shape = {}".format(eigenvectors.shape))
 
     # sqrt, above zero
     eigenvalues2 = np.sqrt(np.clip(eigenvalues, 0, None))
     if debug:
-        print("eigenvalues2: {}".format(eigenvalues2.shape))
+        iprint("clip + sqrt, eigenvalues2: {}".format(eigenvalues2.shape))
 
     emb = np.dot(eigenvectors, np.diag(eigenvalues2))
     if debug:
-        print("emb shape = {}".format(emb.shape))
+        iprint("dot with eigenvalues, emb shape = {}".format(emb.shape))
 
     return eigenvectors, eigenvalues, emb
+
+
+# ----------------------------------------------------------------------------
 
 
 def main(
@@ -203,36 +193,40 @@ def main(
     :param debug: debug output information (Default value = False)
 
     """
-    print("* Load words and frequencies ...", end="", flush=True)
+    set_base_indent_level()
+
+    iprint("* Load words and frequencies ...", end="", flush=True)
     start_time = time.time()
     vocab2id, freqlist = get_word_idx(word_freq_file)
-    print(" {}".format(_get_time_diff(start_time)))
+    print(" {}".format(get_time_diff(start_time)))
 
-    print("* Load yearly coocs and build matrix ...", end="", flush=True)
+    iprint("* Load yearly coocs and build matrix ...", end="", flush=True)
     start_time = time.time()
     cooccur = get_cum_cooccur(yearly_cooc_file, vocab2id)
-    print(" {}".format(_get_time_diff(start_time)))
+    print(" {}".format(get_time_diff(start_time)))
 
     if initial_coocfreq_file:
-        print("  * Save cooc mat + freq vec to: {}".format(initial_coocfreq_file))
+        iprint(
+            "* Save cooc mat + freq vec to: {}".format(initial_coocfreq_file), level=1
+        )
         try:
             sio.savemat(initial_coocfreq_file, {"cooccur": cooccur, "freq": freqlist})
         except Exception as ex:
-            print("    ! {}".format(ex))
+            print("! {}".format(ex), level=2)
 
-    print("* Generate static embeddings ...")
+    iprint("* Generate static embeddings ...")
     start_time = time.time()
     eigenvectors, eigenvalues, emb = build_static_embs(
         cooccur, freqlist, rank=rank, debug=debug
     )
-    print("~ Took {}".format(_get_time_diff(start_time)))
+    iprint("~ Took {}".format(get_time_diff(start_time)))
 
     if eigs_static_file:
-        print("  * Save eigenvectors/-values to: {}".format(eigs_static_file))
+        iprint("* Save eigenvectors/-values to: {}".format(eigs_static_file), level=1)
         sio.savemat(
             eigs_static_file, {"X": eigenvectors, "D": eigenvalues}
         )  # save -v7.3 eigs_static X D
-    print("  * Save static embeddings to: {}".format(emb_static_file))
+    iprint("* Save static embeddings to: {}".format(emb_static_file), level=1)
     sio.savemat(emb_static_file, {"emb": emb})
 
 
@@ -330,7 +324,7 @@ def parse_args():
     if not args.coocs_matrix_file:
         args.coocs_matrix_file = None
     if not args.eigs_file:
-        arsg.eigs_file = None
+        args.eigs_file = None
 
     if os.path.exists(args.data_dir):
         args.words_file = os.path.join(args.data_dir, args.words_file)

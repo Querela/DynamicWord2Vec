@@ -10,16 +10,19 @@ Created on Thu Nov 10 13:10:42 2016
 """
 
 import ast
-import datetime
 import os
 import time
 
 import numpy as np
+
 import util_timeCD as util
-import pickle as pickle
+from util_shared import set_base_indent_level, iprint, get_time_diff
 
 
-def print_params(rank, lam, tau, gam, emph, num_iterations):
+# ----------------------------------------------------------------------------
+
+
+def print_train_params(rank, lam, tau, gam, emph, num_iterations):
     """Dump parameter values.
 
     :param rank: rank/dimension of embeddings (?)
@@ -30,168 +33,12 @@ def print_params(rank, lam, tau, gam, emph, num_iterations):
     :param num_iterations: number of iterations over data
 
     """
-    print("rank = {}".format(rank))
-    print("frob regularizer = {}".format(lam))
-    print("time regularizer = {}".format(tau))
-    print("symmetry regularizer = {}".format(gam))
-    print("emphasize param = {}".format(emph))
-    print("total iterations = {}".format(num_iterations))
-
-
-def try_load_UV(savefile, iteration):
-    """Try to load a savepoint of U and V for a given iteration.
-
-    :param savefile: filename prefix, given by parameters
-    :param iteration: iteration
-    :returns: U, V if able to load, else None, None on error
-
-    """
-    Ulist = Vlist = None
-
-    try:
-        with open("{}ngU_iter{}.p".format(savefile, iteration), "rb") as file:
-            Ulist = pickle.load(file)
-        with open("{}ngV_iter{}.p".format(savefile, iteration), "rb") as file:
-            Vlist = pickle.load(file)
-    except (IOError):
-        Ulist = Vlist = None
-
-    return Ulist, Vlist
-
-
-def try_load_UVT(savefile, iteration, time):
-    """Try to load a savepoint of U and V and times for a given iteration and timepoint combination.
-
-    :param savefile: filename prefix, given by parameters
-    :param iteration: iteration
-    :param time: timepoint in iteration
-    :returns: U, V, times if able to load, else None, None, None on error
-
-    """
-    Ulist = Vlist = times = None
-
-    try:
-        with open(
-            "{}ngU_iter{}_time{}.p".format(savefile, iteration, time), "rb"
-        ) as file:
-            Ulist = pickle.load(file)
-        with open(
-            "{}ngV_iter{}_time{}.p".format(savefile, iteration, time), "rb"
-        ) as file:
-            Vlist = pickle.load(file)
-        with open(
-            "{}ngtimes_iter{}_time{}.p".format(savefile, iteration, time), "rb"
-        ) as file:
-            times = pickle.load(file)
-    except (IOError):
-        Ulist = Vlist = times = None
-
-    return Ulist, Vlist, times
-
-
-def save_UV(Ulist, Vlist, savefile, iteration):
-    """Saves embeddings U, V for a given iteration.
-
-    :param Ulist: embedding U
-    :param Vlist: embedding V
-    :param savefile: filename prefix, given by parameters
-    :param iteration: iteration
-
-    """
-    with open("{}ngU_iter{}.p".format(savefile, iteration), "wb") as file:
-        pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
-    with open("{}ngV_iter{}.p".format(savefile, iteration), "wb") as file:
-        pickle.dump(Vlist, file, pickle.HIGHEST_PROTOCOL)
-
-
-def save_UVT(Ulist, Vlist, times, savefile, iteration, time):
-    """Saves embeddings U, V and times for a given iteration.
-
-    :param Ulist: embeddings U
-    :param Vlist: embeddings V
-    :param times: times (may be randomized)
-    :param savefile: filename prefix, given by parameters
-    :param iteration: iteration
-    :param time: timepoint in iteration
-
-    """
-    with open("{}ngU_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
-        pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
-    with open("{}ngV_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
-        pickle.dump(Vlist, file, pickle.HIGHEST_PROTOCOL)
-    with open(
-        "{}ngtimes_iter{}_time{}.p".format(savefile, iteration, time), "wb"
-    ) as file:
-        pickle.dump(times, file, pickle.HIGHEST_PROTOCOL)
-
-
-def load_train_data(data_dir, num_words, time_range, time_period):
-    """Really not very generic method to load train data PMI file for a given timepoint.
-
-    :param data_dir: directory of data files, PMI word pairs
-    :param num_words: number of words in vocabulary
-    :param time_range: range object of times
-    :param time_period: timepoint (year?)
-
-    """
-    filename = "wordPairPMI_{}.csv".format(time_range.index(time_period))
-    if data_dir:
-        filename = os.path.join(data_dir, filename)
-    # print("\nLoading current trainings data (time: {}, at: {}) from: {}".format(time_period, time_range.index(time_period), filename))
-
-    pmi = util.getmat(filename, num_words, False)
-
-    return pmi
-
-
-def do_train_step(Ulist, Vlist, pmi, b_ind, t, num_times, lam, tau, gam, emph, rank):
-    """Do a single training step for a single iteration and timepoint combination.
-    Uses b_ind (batching indices) to batch-wise update the whole embedding matrices.
-
-    :param Ulist: embeddings U
-    :param Vlist: embeddings V
-    :param pmi: PMI word matrix
-    :param b_ind: batching indices (list of ranges())
-    :param t: current timepoint
-    :param num_times: number of timepoints total
-    :param lam: frob regularizer
-    :param tau: smoothing regularizer / time regularizer
-    :param gam: forcing regularizer / symmetry regularizer
-    :param emph: emphasize the nonzero
-    :param rank: rank/dimension of embeddings (?)
-
-    """
-    for b_num, ind in enumerate(b_ind, 1):  # select a mini batch
-        if len(b_ind) > 1:
-            print("Batch {}/{} ...".format(b_num, len(b_ind)))
-
-        ## UPDATE V
-        # get data
-        pmi_seg = pmi[:, ind].todense()
-
-        iflag = False  # condition of following may only be true for last one
-        if t == 0:
-            vp = np.zeros((len(ind), rank))
-            up = np.zeros((len(ind), rank))
-            iflag = True
-        else:
-            vp = Vlist[t - 1][ind, :]
-            up = Ulist[t - 1][ind, :]
-
-        if t == num_times - 1:
-            vn = np.zeros((len(ind), rank))
-            un = np.zeros((len(ind), rank))
-            iflag = True
-        else:
-            vn = Vlist[t + 1][ind, :]
-            un = Ulist[t + 1][ind, :]
-
-        Vlist[t][ind, :] = util.update(
-            Ulist[t], emph * pmi_seg, vp, vn, lam, tau, gam, ind, iflag
-        )
-        Ulist[t][ind, :] = util.update(
-            Vlist[t], emph * pmi_seg, up, un, lam, tau, gam, ind, iflag
-        )
+    iprint("~ rank = {}".format(rank))
+    iprint("~ frob regularizer = {}".format(lam))
+    iprint("~ time regularizer = {}".format(tau))
+    iprint("~ symmetry regularizer = {}".format(gam))
+    iprint("~ emphasize param = {}".format(emph))
+    iprint("~ total iterations = {}".format(num_iterations))
 
 
 def do_training(
@@ -225,13 +72,15 @@ def do_training(
     :param num_words: number of words in vocabulary
     :param result_dir: folder to store savepoints and final results in
     :param data_dir: folder with trainings data (PMI word pairs)
-    :param batch_size: size for batching
+    :param batch_size: size for batching (Default value = None)
     :param data_file: if given a file with initial embeddings (Default value = None)
     :param randomize_times: Randomize timepoints in timerange while training (Default value = False)
     :param savepoint_iteration: store current training results per iteration and try to retore from there (Default value = True)
     :param savepoint_iter_time: store current training results per iteration and timepoint and try to restore there (Default value = False)
 
     """
+    set_base_indent_level()
+
     savefile = "L{lam}T{tau}G{gam}A{emph}".format(lam=lam, tau=tau, gam=gam, emph=emph)
     savefile = os.path.join(result_dir, savefile)
 
@@ -239,17 +88,17 @@ def do_training(
     # TODO: think of something better ...
     time_range = range(time_range[0], time_range[-1] + 2)
 
-    print("Initializing ...")
+    iprint("* Initializing ...")
     if data_file is None:
-        Ulist, Vlist = util.initvars(num_words, time_range, rank)
+        Ulist, Vlist = util.init_emb_random(num_words, time_range, rank)
     else:
-        Ulist, Vlist = util.import_static_init(data_file, time_range)
+        Ulist, Vlist = util.init_emb_static(data_file, time_range)
     # print(Ulist)
     # print(Vlist)
 
-    print("Preparing batch indices ...")
+    iprint("* Preparing batch indices ...")
     if batch_size is not None and batch_size < num_words:
-        b_ind = util.getbatches(num_words, batch_size)
+        b_ind = util.make_batches(num_words, batch_size)
     else:
         b_ind = [range(num_words)]
 
@@ -259,14 +108,14 @@ def do_training(
 
     # sequential updates
     for iteration in range(num_iters):
-        print("-" * 78)
-        # print_params(rank, lam, tau, gam, emph, num_iters)
+        iprint("-" * 78)
+        # print_train_params(rank, lam, tau, gam, emph, num_iters)
 
         # try restoring previous training state
         if savepoint_iteration:
-            Ulist2, Vlist2 = try_load_UV(savefile, iteration)
+            Ulist2, Vlist2 = util.try_load_UV(savefile, iteration)
             if Ulist2 and Vlist2:
-                print("Iteration {} loaded succesfully.".format(iteration))
+                iprint("* Iteration {} loaded succesfully.".format(iteration), level=1)
                 Ulist, Vlist = Ulist2, Vlist2
                 continue
 
@@ -281,8 +130,8 @@ def do_training(
 
         for time_step, time_period in enumerate(times):  # select next/a time
             time_ittm_start = time.time()
-            print(
-                "Iteration {} ({}/{}), Time {} ({}/{}) ...".format(
+            iprint(
+                "* Iteration {} ({}/{}), Time {} ({}/{}) ...".format(
                     iteration,
                     iteration + 1,
                     num_iters,
@@ -292,22 +141,26 @@ def do_training(
                 ),
                 end="",
                 flush=True,
+                level=1,
             )
 
             if savepoint_iter_time:
-                Ulist2, Vlist2, times2 = try_load_UV(savefile, iteration, time_step)
+                Ulist2, Vlist2, times2 = util.try_load_UV(
+                    savefile, iteration, time_step
+                )
                 if Ulist2 and Vlist2 and times2:
-                    print(
-                        "\nIteration {}, Time {} loaded succesfully".format(
+                    iprint(
+                        "* Iteration {}, Time {} loaded succesfully".format(
                             iteration, time_step
-                        )
+                        ),
+                        level=1,
                     )
                     Ulist, Vlist, times = Ulist2, Vlist2, times2
                     continue
 
-            pmi = load_train_data(data_dir, num_words, time_range, time_period)
+            pmi = util.load_train_data(data_dir, num_words, time_range, time_period)
 
-            do_train_step(
+            util.do_train_step(
                 Ulist,
                 Vlist,
                 pmi,
@@ -322,22 +175,18 @@ def do_training(
             )
 
             if savepoint_iter_time:
-                save_UVT(Ulist, Vlist, times, savefile, iteration, time_step)
+                util.save_UVT(Ulist, Vlist, times, savefile, iteration, time_step)
 
             time_ittm_end = time.time()
             print(" {:.2f} sec".format(time_ittm_end - time_ittm_start))
 
-        print(
-            "Total time elapsed = {}".format(
-                datetime.timedelta(seconds=int(time.time() - start_time))
-            )
-        )
+        print("* Total time elapsed = {}".format(get_time_diff(start_time)))
 
         # save
         if savepoint_iteration:
-            save_UV(Ulist, Vlist, savefile, iteration)
+            util.save_UV(Ulist, Vlist, savefile, iteration)
 
-    print("Save results to: {}".format(result_dir))
+    iprint("* Save results to: {}".format(result_dir))
     util.save_embeddings("{}/embeddings_Unew.mat".format(result_dir), Ulist)
     util.save_embeddings("{}/embeddings_Vnew.mat".format(result_dir), Vlist)
     util.save_embeddings_split(
@@ -467,7 +316,7 @@ def parse_args():
         time_range2 = range(*ast.literal_eval(args.time_range))
         args.time_range = time_range2
     except Exception as ex:
-        print("! Default to default value for time_range, {}".format(ex))
+        iprint("! Default to default value for time_range, {}".format(ex))
         args.time_range = range(*time_range)
 
     if args.batch_size <= 0:
@@ -478,6 +327,7 @@ def parse_args():
 
 if __name__ == "__main__":
     #: parse arguments, use defaults
+    set_base_indent_level()
     args = parse_args()
 
     #: warn if no savepoints
@@ -486,19 +336,19 @@ if __name__ == "__main__":
 
     # make results dir
     if not os.path.exists(args.result_dir):
-        print("Make results dir: {}".format(args.result_dir))
+        iprint("! Make results dir: {}".format(args.result_dir))
         os.mkdir(args.result_dir)
 
     # dump parameters
-    print("Starting training with following parameters:")
-    print_params(args.rank, args.lam, args.tau, args.gam, args.emph, args.iters)
-    print(
-        "There are a total of {} words and {} time points.".format(
+    iprint("* Starting training with following parameters:")
+    print_train_params(args.rank, args.lam, args.tau, args.gam, args.emph, args.iters)
+    iprint(
+        "* There are a total of {} words and {} time points.".format(
             args.num_words, args.time_range
         )
     )
 
-    print("=" * 78)
+    iprint("=" * 78)
     # print(args)
 
     # train
@@ -520,4 +370,4 @@ if __name__ == "__main__":
         savepoint_iter_time=args.save_per_iteration_time,
     )
 
-    print("Done.")
+    iprint("* Done.")

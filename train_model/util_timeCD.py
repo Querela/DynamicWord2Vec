@@ -14,12 +14,70 @@ Created on Thu Nov 10 10:11:23 2016
 
 import copy
 import os
+import pickle as pickle
 
 import numpy as np
 import pandas as pd
 import scipy.io as sio
 import scipy.sparse as ss
-from sklearn.metrics.pairwise import cosine_similarity
+
+# from sklearn.metrics.pairwise import cosine_similarity
+
+from util_shared import iprint
+
+
+# ----------------------------------------------------------------------------
+# - updating
+
+
+def do_train_step(Ulist, Vlist, pmi, b_ind, tx, num_times, lam, tau, gam, emph, rank):
+    """Do a single training step for a single iteration and timepoint combination.
+    Uses b_ind (batching indices) to batch-wise update the whole embedding matrices.
+
+    :param Ulist: embeddings U
+    :param Vlist: embeddings V
+    :param pmi: PMI word matrix
+    :param b_ind: batching indices (list of ranges())
+    :param tx: current timepoint
+    :param num_times: number of timepoints total
+    :param lam: frob regularizer
+    :param tau: smoothing regularizer / time regularizer
+    :param gam: forcing regularizer / symmetry regularizer
+    :param emph: emphasize the nonzero
+    :param rank: rank/dimension of embeddings (?)
+
+    """
+    for b_num, ind in enumerate(b_ind, 1):  # select a mini batch
+        if len(b_ind) > 1:
+            iprint("* Batch {}/{} ...".format(b_num, len(b_ind)))
+
+        # # UPDATE V
+        # get data
+        pmi_seg = pmi[:, ind].todense()
+
+        iflag = False  # condition of following may only be true for last one
+        if tx == 0:
+            vp = np.zeros((len(ind), rank))
+            up = np.zeros((len(ind), rank))
+            iflag = True
+        else:
+            vp = Vlist[tx - 1][ind, :]
+            up = Ulist[tx - 1][ind, :]
+
+        if tx == num_times - 1:
+            vn = np.zeros((len(ind), rank))
+            un = np.zeros((len(ind), rank))
+            iflag = True
+        else:
+            vn = Vlist[tx + 1][ind, :]
+            un = Ulist[tx + 1][ind, :]
+
+        Vlist[tx][ind, :] = update(
+            Ulist[tx], emph * pmi_seg, vp, vn, lam, tau, gam, ind, iflag
+        )
+        Ulist[tx][ind, :] = update(
+            Vlist[tx], emph * pmi_seg, up, un, lam, tau, gam, ind, iflag
+        )
 
 
 def update(U, Y, Vm1, Vp1, lam, tau, gam, ind, iflag):
@@ -56,7 +114,11 @@ def update(U, Y, Vm1, Vp1, lam, tau, gam, ind, iflag):
     return Vhat[0].T  # bxr
 
 
-def import_static_init(data_file, times):
+# ----------------------------------------------------------------------------
+# - initialization
+
+
+def init_emb_static(data_file, times):
     """Load MATLAB file with embeddings in "emb" to initialize embeddings with a given state?
 
     :param data_file: MATLAB file
@@ -71,7 +133,7 @@ def import_static_init(data_file, times):
     return U, V
 
 
-def initvars(vocab_size, times, rank):
+def init_emb_random(vocab_size, times, rank):
     """Initialize embeddings randomly, for each time point the same.
 
     :param vocab_size: number of words in vocabulary
@@ -92,6 +154,10 @@ def initvars(vocab_size, times, rank):
         V.append(V[0].copy())
         # print(t)
     return U, V
+
+
+# ----------------------------------------------------------------------------
+# - save results
 
 
 def save_embeddings(data_file, emb):
@@ -125,7 +191,121 @@ def save_embeddings_split(data_file, emb, time_range, prefix="U_"):
     sio.savemat(data_file, embs)
 
 
-def getmat(
+# ----------------------------------------------------------------------------
+# - save point handling
+
+
+def try_load_UV(savefile, iteration):
+    """Try to load a savepoint of U and V for a given iteration.
+
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :returns: U, V if able to load, else None, None on error
+
+    """
+    Ulist = Vlist = None
+
+    try:
+        with open("{}ngU_iter{}.p".format(savefile, iteration), "rb") as file:
+            Ulist = pickle.load(file)
+        with open("{}ngV_iter{}.p".format(savefile, iteration), "rb") as file:
+            Vlist = pickle.load(file)
+    except (IOError):
+        Ulist = Vlist = None
+
+    return Ulist, Vlist
+
+
+def try_load_UVT(savefile, iteration, time):
+    """Try to load a savepoint of U and V and times for a given iteration and timepoint combination.
+
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :param time: timepoint in iteration
+    :returns: U, V, times if able to load, else None, None, None on error
+
+    """
+    Ulist = Vlist = times = None
+
+    try:
+        with open(
+            "{}ngU_iter{}_time{}.p".format(savefile, iteration, time), "rb"
+        ) as file:
+            Ulist = pickle.load(file)
+        with open(
+            "{}ngV_iter{}_time{}.p".format(savefile, iteration, time), "rb"
+        ) as file:
+            Vlist = pickle.load(file)
+        with open(
+            "{}ngtimes_iter{}_time{}.p".format(savefile, iteration, time), "rb"
+        ) as file:
+            times = pickle.load(file)
+    except (IOError):
+        Ulist = Vlist = times = None
+
+    return Ulist, Vlist, times
+
+
+def save_UV(Ulist, Vlist, savefile, iteration):
+    """Saves embeddings U, V for a given iteration.
+
+    :param Ulist: embedding U
+    :param Vlist: embedding V
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+
+    """
+    with open("{}ngU_iter{}.p".format(savefile, iteration), "wb") as file:
+        pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
+    with open("{}ngV_iter{}.p".format(savefile, iteration), "wb") as file:
+        pickle.dump(Vlist, file, pickle.HIGHEST_PROTOCOL)
+
+
+def save_UVT(Ulist, Vlist, times, savefile, iteration, time):
+    """Saves embeddings U, V and times for a given iteration.
+
+    :param Ulist: embeddings U
+    :param Vlist: embeddings V
+    :param times: times (may be randomized)
+    :param savefile: filename prefix, given by parameters
+    :param iteration: iteration
+    :param time: timepoint in iteration
+
+    """
+    with open("{}ngU_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
+        pickle.dump(Ulist, file, pickle.HIGHEST_PROTOCOL)
+    with open("{}ngV_iter{}_time{}.p".format(savefile, iteration, time), "wb") as file:
+        pickle.dump(Vlist, file, pickle.HIGHEST_PROTOCOL)
+    with open(
+        "{}ngtimes_iter{}_time{}.p".format(savefile, iteration, time), "wb"
+    ) as file:
+        pickle.dump(times, file, pickle.HIGHEST_PROTOCOL)
+
+
+# ----------------------------------------------------------------------------
+# - train helpers
+
+
+def load_train_data(data_dir, num_words, time_range, time_period):
+    """Really not very generic method to load train data PMI file for a given timepoint.
+
+    :param data_dir: directory of data files, PMI word pairs
+    :param num_words: number of words in vocabulary
+    :param time_range: range object of times
+    :param time_period: timepoint (year?)
+
+    """
+    filename = "wordPairPMI_{}.csv".format(time_range.index(time_period))
+    if data_dir:
+        filename = os.path.join(data_dir, filename)
+    # print("\nLoading current trainings data (time: {}, at: {}) from: {}".format(time_period, time_range.index(time_period), filename))
+
+    pmi = load_matrix(filename, num_words, False)
+
+    return pmi
+
+
+def load_matrix(
     filename,
     vocab_size,
     rowflag=False,
@@ -175,7 +355,7 @@ def getmat(
     return X
 
 
-def getbatches(vocab_size, batch_size):
+def make_batches(vocab_size, batch_size):
     """Make batching indices to be able to iteratively work with large matrices.
 
     :param vocab_size: number of words in vocabulary
@@ -190,6 +370,10 @@ def getbatches(vocab_size, batch_size):
         batch_inds.append(range(current, end))
         current = end
     return batch_inds
+
+
+# ----------------------------------------------------------------------------
+# unused
 
 
 def getclosest(wid, U, num_results=10):
@@ -234,3 +418,6 @@ def compute_smoothscore(U, Um1, Up1):
 
     """
     return np.linalg.norm(U - Up1) ** 2 + np.linalg.norm(U - Um1) ** 2
+
+
+# ----------------------------------------------------------------------------

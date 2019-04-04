@@ -41,14 +41,17 @@ _NOTE: currently best used for continuous yearly data, other time intervals requ
  - contains code used for training our embeddings
  - data file download: https://www.dropbox.com/s/nifi5nj1oj0fu2i/data.zip?dl=0 (4,0 GB)
  
-    `/train_model/train_time_CD_smallnyt.py`
+    `/train_model/train_timeCD.py`
      - main training script
      - needs `wordPairPMI_%d.csv` data files, optionally `emb_static.mat` with initial static eigenvalue embedding
 
     `/train_model/util_timeCD.py`
-     - containing helper functions 
+     - containing helper functions and update functions
        - update function, eq. 8 from paper
        - reading and writing of CSV PMI data files and embeddings
+
+    `/train_model/util_shared.py`
+     - containing helper functions for printing
 
     `/train_model/build_pmis.py`
      - currently private, uses preprocessed DB data to build data files
@@ -59,13 +62,13 @@ _NOTE: currently best used for continuous yearly data, other time intervals requ
     `/train_model/prepare_static_embeddings.py`
      - rewritten code of (following) `form_cum_coocur_matrix.py` and `get_best_static_eig.m`
 
-    `/train_model/data/form_cum_coocur_matrix.py` (from extracted `data.zip`)
+    `/train_model/data/form_cum_coocur_matrix.py` (extracted from `data.zip`)
      - uses a magic `wordCoOccurByYear_min200_ws5.csv` file with cooccurrence values for word-pairs (probably minimum frequency of 200 and window size of 5), cooccurrence columns for each year
      - file `wordIDHash.csv` with w_id, word and probably total number of occurrences in text
      - script to transform data for static eigenvalue computation
      - `wordCoOccurByYear` may have also been used to compute **PMI** values for training
 
-    `/train_model/data/get_best_static_eig.m` (from extracted `data.zip`)
+    `/train_model/data/get_best_static_eig.m` (extracted from `data.zip`)
      - MATLAB code
      - compute eigenvalue initial static embeddings for training
      - uses cumulative yearly cooccurrence matrix
